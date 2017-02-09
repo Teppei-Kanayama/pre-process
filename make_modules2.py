@@ -10,10 +10,8 @@ import matplotlib.pyplot as plt #ヒストグラムの描画に使用
 from scipy.misc import imsave #出力にのみ使用
 import cv2 #bounding boxの描画に使用
 
-from skimage import transform
-
-def gaussian(img, sigma):
-    return ndi.gaussian_filter(img, sigma)
+def gaussian(img, sigma=1):
+    return ndi.filters.gaussian_filter(img, sigma=sigma)
 
 def decide_threshold(img):
     threshold = 0
@@ -33,7 +31,7 @@ def decide_threshold(img):
             threshold = thresh_candidate
     return threshold
 
-def gray2bin(img, filtering=True, sigma=1): #TODO: gaussian()とotsu()を自前で作る。
+def gray2bin(img, filtering=True, sigma=1):
     """Convert gray-scale image to binary image.
 
     # Input shape
@@ -72,7 +70,6 @@ def bbox(img):
     width = img.shape[1]
 
     #高さの最大値、最小値の計算
-    #もうちょい良い実装ありそう
     flag = False
     for i in range(height):
         if np.sum(img, axis=1)[i] > 0:
@@ -82,7 +79,6 @@ def bbox(img):
             max_height = i
 
     #幅の最大値、最小値
-    #もうちょい良い実装ありそう
     flag = False
     for i in range(width):
         if np.sum(img, axis=0)[i] > 0:
@@ -106,7 +102,13 @@ def draw_box(img, bbox):
     cv2.rectangle(bounded_img, (bbox[0][0], bbox[0][1]), (bbox[1][0], bbox[1][1]), (255, 255, 255), 1)
     return bounded_img
 
-def resize(img, output_shape, bbox=None, locate="center", keep_shape=True, order=0): #TODO: resize関数を自前で作る。
+def pil_resize(img, output_shape, resample=0):
+    pil_img = Image.fromarray((img * 255.).astype(np.uint8))
+    pil_img = pil_img.resize(output_shape, resample=resample)
+    numpy_img = np.asarray(pil_img)
+    return numpy_img
+
+def resize(img, output_shape, bbox=None, locate="center", keep_shape=True, resample=0):
     #output_shapeは正方形の場合しか想定していない。
     #bbox = ((左上のx座標，左上のy座標)，（右下のｘ座標，右下のｙ座標))
     """Resize operation for binary image.
@@ -123,24 +125,24 @@ def resize(img, output_shape, bbox=None, locate="center", keep_shape=True, order
         bbox (optional): the coordinate of bounding box (upper left and downer right)
         locate (optional): the location of the character. ("center" or "left" or "right")
         keep_shape (optional): if you need not to keep the character's shape, set this argument False
-        order (optional): the method of completion method. (0~5)
+        resample (optional): the method of completion method. (0~5)
     """
     padding_size = 100
     if bbox == None:
-        return transform.resize(img, output_shape, order=order)
+        return transform.resize(img, output_shape, resample=resample)
 
     width = bbox[1][0] - bbox[0][0]
     height = bbox[1][1] - bbox[0][1]
 
     if keep_shape == False:
         img = img[bbox[0][1]:bbox[0][1]+height, bbox[0][0]:bbox[0][0]+width]
-        return transform.resize(img, output_shape, order=order)
+        return transform.resize(img, output_shape, resample=resample)
 
     if height >= width:
         for i in range(2):
             for j in range(2):
                 bbox[i][j] += padding_size
-        img = np.lib.pad(img, padding_size, 'constant', constant_values=False)
+        img = np.lib.pad(img, padding_size, "constant", constant_values=False)
         if locate == "left":
             img = img[bbox[0][1]:bbox[0][1]+height, bbox[0][0]:bbox[0][0]+height]
         elif locate == "center":
@@ -152,8 +154,8 @@ def resize(img, output_shape, bbox=None, locate="center", keep_shape=True, order
     else:
         img = img[bbox[1][1]-width:bbox[1][1], bbox[0][0]:bbox[0][0]+width]
 
-    resized_img = transform.resize(img, output_shape, order=order)
-    if order is not 0:
+    resized_img = pil_resize(img, output_shape, resample=resample)
+    if resample is not 1:
         resized_img = gray2bin(resized_img, filtering=False)
     return resized_img
 
@@ -182,7 +184,6 @@ def main():
         print filename
         if data['background'] == 1:
             img = np.array(Image.open(data['path'] + filename))
-            print(img.dtype)
         else:
             img = np.array(Image.open(data['path'] + filename))
 
@@ -191,7 +192,7 @@ def main():
         img = gray2bin(img, sigma=1)
         top_left, bottom_right = bbox(img)
         #img = draw_box(img, (top_left, bottom_right))
-        img = resize(img, (28, 28), [top_left, bottom_right], locate="right", order=0)
+        img = resize(img, (28, 28), [top_left, bottom_right], locate="right", resample=2)
         imsave('./edited_image/' + filename, img)
 
 if __name__ == "__main__":
