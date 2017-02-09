@@ -14,6 +14,15 @@ def gaussian(img, sigma=1):
     return ndi.filters.gaussian_filter(img, sigma=sigma)
 
 def decide_threshold(img):
+    """Decide suitable threshold based on Otsu's method.
+
+    #Input shape
+        2D ndarray with shape: `(height, width)`
+    #Output
+        float scalar
+    #Arguments
+        img: target gray-scale image
+    """
     threshold = 0
     tmp = 0
     for thresh_candidate in range(128):
@@ -188,7 +197,6 @@ def main():
             img = np.array(Image.open(data['path'] + filename))
 
         #draw_histogram(img, './histogram_yu/' + filename)
-
         img = gray2bin(img, sigma=1)
         top_left, bottom_right = bbox(img)
         #img = draw_box(img, (top_left, bottom_right))
