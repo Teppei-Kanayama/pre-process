@@ -1,0 +1,105 @@
+#-*- coding: utf-8 -*-
+import os
+from PIL import Image
+import numpy as np
+
+from scipy.misc import imsave #出力にのみ使用
+import cv2
+import sys
+reload(sys)
+
+import skimage
+from skimage import data
+from skimage.morphology import disk
+from skimage.filters import threshold_otsu, rank
+from skimage.util import img_as_ubyte
+
+
+# 画像の読み込み
+#img = np.array( Image.open('../ETL_sample/images/ETL1/0/ETL1_1_1002_0.png') )
+
+def thresh_otsu(img):
+    #大津の方法
+    
+    #ret,thresh_img = cv2.threshold(img,0,255,cv2.THRESH_BINARY|cv2.THRESH_OTSU)
+    #print(thresh_img.dtype)
+    #return thresh_img
+    radius = 15
+    selem = disk(radius)
+
+    local_otsu = rank.otsu(img, selem)
+    try:
+        threshold_global_otsu = threshold_otsu(img)
+    except TypeError:
+        threshold_global_otsu = 255
+    global_otsu = img >= threshold_global_otsu
+    #print(global_otsu.dtype)
+    return global_otsu
+    
+    
+def calc_sphere(img):
+    # 画像の高さ、幅を取得
+    height = img.shape[0]
+    width = img.shape[1]
+    
+    #高さの最大値、最小値の計算
+    #もうちょい良い実装ありそう
+    flag = False
+    for i in range(height):
+        if np.sum(img, axis=1)[i] > 0:
+            if flag == False:
+                min_height = i
+                flag = True
+            max_height = i
+
+    #幅の最大値、最小値
+    #もうちょい良い実装ありそう
+    flag = False
+    for i in range(width):
+        if np.sum(img, axis=0)[i] > 0:
+            if flag == False:
+                min_width = i
+                flag = True
+            max_width = i
+    try:
+        sphere = (min_height, max_height, min_width, max_width)
+    except UnboundLocalError:
+        sphere = (0, height, 0, width)
+    return sphere
+        
+            
+def draw_box(img, min_height, max_height, min_width, max_width):
+    #太さ1の四角形を描く
+    bounded_img = np.array(img)
+    cv2.rectangle(bounded_img, (min_width, min_height), (max_width, max_height), (0, 0, 0), 1)
+    return bounded_img
+
+def trim_image():
+    #画像のトリミング
+    #trimed_img = img[min_height:max_height, min_width:max_width]
+    pass
+
+def main():
+    
+    data_path = "../ETL_sample/images/ETL1/0/" #0
+    #data_path = "../ETL_sample/images/ETL7/ETL7SC_2/" #あ
+    #data_path = "../ETL_sample/images/ETL8G/A.HIRA/" #み
+    background = 1 #背景が黒の時は1
+    filenames = os.listdir(data_path)
+    
+    # 画像の読み込み
+    for filename in filenames:
+        print filename
+        if background == 1:
+            img = 255 - np.array( Image.open((data_path + filename)))
+        else:
+            img = np.array( Image.open(data_path + filename) )
+        img = thresh_otsu(img)
+        #img = skimage.morphology.binary_closing(img) #これのコメントを外すとバウンディングボックスがうまく行かなくなる。
+        min_height, max_height, min_width, max_width = calc_sphere(1 - img)
+        #print img.dtype, min_height, max_height, min_width, max_width
+        bounded_img = draw_box(img.astype(np.uint8) * 255, min_height, max_height, min_width, max_width)
+        imsave('./edited_image/' + filename, bounded_img)
+                    
+if __name__ == "__main__":
+    main()
